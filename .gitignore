@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Test coverage
+coverage/
+
+# Generated docs (TypeDoc) — keep only hand-written docs
+/docs/**
+!/docs/DEV.md
+!/docs/README.md
+
+# Logs and debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+.npm
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE / Editor
+.idea/
+.vscode/
+
+*.iml
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Lock files (optional: keep one; uncomment if you want to ignore the other)
+# package-lock.json
+# yarn.lock

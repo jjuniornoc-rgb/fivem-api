@@ -1,0 +1,6 @@
+{
+  "vars": {
+    "sv_maxClients": 32
+  },
+  "resources": ["spawnmanager", "mapmanager", "baseevents"]
+}
