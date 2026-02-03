@@ -1,179 +1,210 @@
-# fivem-api
+# 🎮 Discord FiveM API
 
-> Biblioteca Node.js para interagir com servidores FiveM: status, jogadores e recursos. Suporta **IP:porta** e **links cfx.re/join**. Ideal para bots Discord e apps Node.
+> A biblioteca Node.js definitiva para monitorar servidores FiveM. Rápida, robusta e totalmente tipada.
 
-[![GitHub](https://img.shields.io/badge/install-from%20GitHub-24292e?logo=github)](https://github.com/jjuniornoc-rgb/varlet-fivem-api)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue?logo=typescript)](https://www.typescriptlang.org/)
 
----
-
-## Índice
-
-- [Instalação](#instalação)
-- [Uso rápido](#uso-rápido)
-- [Opções](#opções)
-- [API](#api)
-- [Múltiplos servidores](#múltiplos-servidores)
-- [Documentação](#documentação)
-- [Licença](#licença)
+Esta biblioteca permite que você interaja facilmente com servidores FiveM para obter status, lista de jogadores online, recursos ativos e muito mais. Perfeita para bots de Discord, dashboards e painéis de administração.
 
 ---
 
-## Instalação
+## ✨ Funcionalidades
 
-Instale direto do **GitHub** (o npm compila o TypeScript automaticamente ao instalar):
+- 🚀 **Full TypeScript**: Tipagem forte para todos os métodos e eventos.
+- 🔗 **Resolve Links cfx.re**: Aceita `cfx.re/join/xxxx` e resolve para o IP real automaticamente.
+- ⚡ **Performance**: Cache embutido (TTL) para reduzir chamadas à API do servidor.
+- 🛡️ **Robustez**: Sistema de **Retry** automático e **Circuit Breaker** para lidar com falhas de rede.
+- 🔄 **Auto-Updates**: Sistema de eventos (Polling) para detectar quando jogadores entram/saem.
+- 🌐 **Multi-Server**: Gerencie dezenas de servidores com uma única instância do `MultiServerManager`.
+- ⚙️ **Lifecycle Control**: Métodos `start()`, `stop()` e `destroy()` para gerenciamento eficiente de memória.
+
+---
+
+## 📦 Instalação
+
+Instale via npm (direto do GitHub enquanto não publicado):
 
 ```bash
 npm install github:jjuniornoc-rgb/fivem-api
 ```
 
-Ou com a URL completa:
-
+Ou se preferir `git+https`:
 ```bash
 npm install git+https://github.com/jjuniornoc-rgb/fivem-api.git
 ```
 
-No código use: `require('fivem-api')` ou `import ... from 'fivem-api'`.
-
-*Quando publicado no npm, também será possível: `npm install fivem-api`*
-
 ---
 
-## Uso rápido
+## 🚀 Uso Básico
 
-Use **IP e porta** ou um **link cfx.re/join**. Com link (ex.: `https://cfx.re/join/p7zxb5`), o pacote resolve para o IP real na primeira chamada.
+### Conectando a um servidor
 
-**JavaScript (CommonJS)**
-
-```javascript
-const { DiscordFivemApi } = require('fivem-api');
-
-const api = new DiscordFivemApi({
-  address: '93.123.22.56',
-  port: 30120,
-  useStructure: true,
-}, true);
-
-api.on('ready', () => console.log('Conectado'));
-api.getStatus().then(status => console.log('Status:', status));
-```
-
-**Com link cfx.re**
-
-```javascript
-const apiByLink = new DiscordFivemApi({
-  address: 'https://cfx.re/join/p7zxb5',
-  useStructure: true,
-}, true);
-```
-
-**TypeScript**
+Você pode conectar usando IP e porta, ou um link direto do cfx.re.
 
 ```typescript
-import { DiscordFivemApi, Player, Server } from 'fivem-api';
+import { DiscordFivemApi } from 'fivem-api';
 
 const api = new DiscordFivemApi({
-  address: 'https://cfx.re/join/p7zxb5',
-  useStructure: true,
-  cacheTtlMs: 5000,
-}, true);
+  address: 'cfx.re/join/p7zxb5', // Ou IP '127.0.0.1'
+  port: 30120, // Opcional se usar link cfx.re
+  interval: 5000, // Atualizar a cada 5 segundos
+});
 
-api.on('readyPlayers', (players) => {
-  const sorted = api.sortPlayers(players, 'name', 'asc');
-  console.log(sorted);
+// Iniciar monitoramento
+api.start();
+
+api.on('ready', () => {
+    console.log('✅ Conectado ao servidor FiveM!');
+});
+
+api.on('playerJoin', (player) => {
+    console.log(`👋 ${player.name} entrou no servidor (ID: ${player.id})`);
+});
+
+api.on('playerLeave', (player) => {
+    console.log(`🚪 ${player.name} saiu do servidor.`);
 });
 ```
 
-O segundo argumento do construtor (**`init`**) indica se os dados devem ser carregados e o polling iniciado imediatamente (`true`).
+### Obtendo dados sob demanda
+
+```typescript
+// Verificar se está online
+const status = await api.getStatus(); // 'online' | 'offline'
+
+// Pegar contagem de jogadores
+const onlineCount = await api.getPlayersOnline();
+const maxPlayers = await api.getMaxPlayers();
+
+console.log(`Jogadores: ${onlineCount}/${maxPlayers}`);
+
+// Pegar lista e ordenar
+const players = await api.getServerPlayers();
+const sortedPlayers = api.sortPlayers(players, 'name', 'asc');
+```
 
 ---
 
-## Opções
+## 🛠️ Configuração Avançada
 
-| Opção | Tipo | Padrão | Descrição |
-|-------|------|--------|-----------|
-| `address` | `string` | *obrigatório* | IP/host do servidor ou **link cfx.re/join** |
-| `port` | `number` | `30120` | Porta (ignorada quando `address` é link cfx.re) |
-| `useStructure` | `boolean` | `false` | Retornar instâncias `Player` e `Server` em vez de objetos simples |
-| `interval` | `number` | `2500` | Intervalo de polling (ms) para eventos de jogadores/recursos |
-| `cacheTtlMs` | `number` | `0` | TTL do cache em ms (`0` = sem cache) |
-| `retry` | `object` \| `true` | `false` | Retentativas com backoff exponencial |
-| `circuitBreaker` | `object` \| `true` | `false` | Circuit breaker após falhas repetidas |
+A classe `DiscordFivemApi` aceita várias opções para ajustar o comportamento:
+
+```typescript
+const api = new DiscordFivemApi({
+  address: '192.168.1.100',
+  port: 30120,
+  
+  // Retorna instâncias de classe Player/Server com métodos auxiliares em vez de JSON puro
+  useStructure: true,
+  
+  // Cache de requisições por 2 segundos (evita spam na API)
+  cacheTtlMs: 2000,
+  
+  // Intervalo de verificação de eventos de entrada/saída (ms)
+  interval: 2500,
+
+  // Tentar reconectar até 3 vezes em caso de falha http
+  retry: {
+      maxAttempts: 3,
+      initialDelayMs: 1000
+  },
+
+  // Circuit Breaker: para de tentar se falhar 5 vezes seguidas por 30s
+  circuitBreaker: {
+      failureThreshold: 5,
+      cooldownMs: 30000
+  }
+});
+```
 
 ---
 
-## API
+## 🌐 Gerenciando Múltiplos Servidores
 
-### Métodos
+Se você tem um bot que monitora vários servidores, use o `MultiServerManager`. Ele centraliza os eventos e evita memory leaks.
 
-| Método | Retorno |
-|--------|---------|
-| `getStatus()` | `Promise<'online' \| 'offline'>` |
-| `getServerData()` | `Promise<Server \| object>` |
-| `getServerPlayers()` | `Promise<Player[] \| object[]>` |
-| `getPlayersOnline()` | `Promise<number>` |
-| `getMaxPlayers()` | `Promise<number>` |
-| `filterPlayers(players, predicate)` | Array filtrado |
-| `sortPlayers(players, key, 'asc' \| 'desc')` | Array ordenado |
+```typescript
+import { MultiServerManager } from 'fivem-api';
 
-### Controle de Lifecycle
+const manager = new MultiServerManager();
 
-| Método/Propriedade | Descrição |
-|--------------------|-----------|
-| `start()` | Inicia o polling de jogadores/recursos |
-| `stop()` | Para o polling (pode ser reiniciado com `start()`) |
-| `destroy()` | Para polling, limpa cache e remove todos os listeners |
-| `isRunning` | `boolean` - Indica se o polling está ativo |
+// Adicionar servidores
+manager.addServer('roleplay', { address: 'cfx.re/join/abc1234' });
+manager.addServer('pvp', { address: '127.0.0.1', port: 30121 });
+
+// Iniciar todos
+manager.startAll();
+
+// Escutar eventos de TODOS os servidores
+manager.on('playerJoin', ({ serverId, player }) => {
+    console.log(`[${serverId}] ${player.name} entrou.`);
+});
+
+// Pegar status de todos de uma vez
+const statusMap = await manager.getAllStatus();
+// { roleplay: 'online', pvp: 'offline' }
+
+// Parar um servidor específico
+manager.stopServer('pvp');
+```
+
+---
+
+## ♻️ Ciclo de Vida (Lifecycle) - Importante!
+
+Para evitar **Memory Leaks** (vazamento de memória), sempre pare o monitoramento quando não precisar mais.
+
+```typescript
+// Iniciar polling
+api.start();
+
+// Verificar se está rodando
+if (api.isRunning) {
+    console.log("Monitoramento ativo");
+}
+
+// Parar polling (mantém configurações, pode reiniciar com start())
+api.stop();
+
+// DESTRUIR (Limpa tudo, remove listeners e cache. Use ao desligar o bot/componente)
+api.destroy();
+```
+
+---
+
+## 📚 Referência da API
+
+### Métodos Principais (`DiscordFivemApi`)
+
+| Método | Retorno | Descrição |
+|--------|---------|-----------|
+| `start()` | `void` | Inicia o monitoramento. |
+| `stop()` | `void` | Pausa o monitoramento. |
+| `destroy()` | `void` | Limpa tudo e remove listeners. |
+| `getStatus()` | `Promise<'online'\|'offline'>` | Verifica conectividade com o servidor. |
+| `getPlayersOnline()` | `Promise<number>` | Retorna quantidade atual de jogadores. |
+| `getMaxPlayers()` | `Promise<number>` | Retorna capacidade máxima (sv_maxClients). |
+| `getServerPlayers()` | `Promise<Player[]>` | Retorna lista completa de jogadores. |
+| `getServerData()` | `Promise<Server>` | Retorna dados do servidor (vars, resources, etc). |
 
 ### Eventos
 
-| Evento | Payload |
-|--------|---------|
-| `ready` | — |
-| `readyPlayers` | `players` |
-| `readyResources` | `resources` |
-| `playerJoin` | `player` |
-| `playerLeave` | `player` |
-| `resourceAdd` | `resource` (string) |
-| `resourceRemove` | `resource` (string) |
+| Evento | Payload | Quando ocorre? |
+|--------|---------|----------------|
+| `playerJoin` | `player` | Jogador entrou no servidor. |
+| `playerLeave` | `player` | Jogador saiu do servidor. |
+| `resourceAdd` | `resourceName` | Um resource foi iniciado. |
+| `resourceRemove` | `resourceName` | Um resource foi parado. |
+| `ready` | `void` | Conexão inicial estabelecida com sucesso. |
 
 ---
 
-## Múltiplos servidores
+## 📝 Licença
 
-Use **MultiServerManager** para gerenciar vários servidores; os eventos incluem `serverId`.
-
-```javascript
-const { MultiServerManager } = require('fivem-api');
-
-const manager = new MultiServerManager();
-manager.addServer('main', { address: '127.0.0.1', port: 30120 }, true);
-manager.addServer('backup', { address: 'https://cfx.re/join/abc123' }, true);
-
-manager.on('playerJoin', ({ serverId, player }) => {
-  console.log(`[${serverId}]`, player.name, 'entrou');
-});
-
-const statuses = await manager.getAllStatus();
-// { main: 'online', backup: 'offline' }
-```
+Copyright © 2026 **[Junior Noc](https://discord.com/users/884180120850563112)**.
+Distribuído sob a licença [MIT](LICENSE.md).
 
 ---
 
-## Documentação
-
-| Documento | Descrição |
-|-----------|-----------|
-| [Documentação completa](docs/README.md) | Índice da documentação (dev, migração, API) |
-| [Guia para desenvolvedores](docs/DEV.md) | Arquitetura, testes, build, CI e publicação |
-| [Migração JS → TS](MIGRATION.md) | Guia de migração para TypeScript |
-| [Contribuição](CONTRIBUTING.md) | Como contribuir com o projeto |
-| [Changelog](CHANGELOG.md) | Histórico de alterações |
-
-Referência da API (TypeDoc): após `npm run docs`, abra `docs/api/`.
-
----
-
-## Licença
-
-MIT © [xliel](https://discord.com/users/417398665670295572)
+Feito com ❤️ por **Junior Noc**.
