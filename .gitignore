@@ -7,10 +7,10 @@ dist/
 # Test coverage
 coverage/
 
-# Generated docs (TypeDoc) — keep only hand-written docs
-/docs/**
-!/docs/DEV.md
-!/docs/README.md
+# Generated docs (TypeDoc)
+docs/
+__tests__/
+examples/
 
 # Logs and debug
 npm-debug.log*
