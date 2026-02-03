@@ -4,6 +4,8 @@ import { MultiServerManager } from './MultiServerManager';
 import { Player, Server } from './structures/index';
 
 export { version, DiscordFivemApi, MultiServerManager, Player, Server };
+export type { DiscordFivemApiEventMap, ResolvedDiscordFivemApiOptions } from './DiscordFivemApi';
+export type { MultiServerManagerEventMap } from './MultiServerManager';
 export {
   isCfxJoinLink,
   extractCfxCode,
@@ -21,4 +23,6 @@ export type {
   CircuitBreakerOptions,
   PlayerFilter,
   PlayerSortKey,
+  ServerStatus,
 } from './types';
+

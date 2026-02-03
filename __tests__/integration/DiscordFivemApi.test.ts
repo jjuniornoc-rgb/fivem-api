@@ -170,4 +170,68 @@ describe('DiscordFivemApi', () => {
       expect((sorted[1] as { name?: string }).name).toBe('PlayerOne');
     });
   });
+
+  describe('lifecycle methods (start/stop/destroy)', () => {
+    it('isRunning returns false initially when init is false', () => {
+      const api = new DiscordFivemApi({ address: '127.0.0.1', port: 30120 }, false);
+      expect(api.isRunning).toBe(false);
+    });
+
+    it('start() begins polling and isRunning becomes true', () => {
+      const api = new DiscordFivemApi({ address: '127.0.0.1', port: 30120 }, false);
+      expect(api.isRunning).toBe(false);
+      api.start();
+      expect(api.isRunning).toBe(true);
+      api.stop(); // cleanup
+    });
+
+    it('stop() stops polling and isRunning becomes false', () => {
+      const api = new DiscordFivemApi({ address: '127.0.0.1', port: 30120 }, false);
+      api.start();
+      expect(api.isRunning).toBe(true);
+      api.stop();
+      expect(api.isRunning).toBe(false);
+    });
+
+    it('start() does nothing if already running', () => {
+      const api = new DiscordFivemApi({ address: '127.0.0.1', port: 30120 }, false);
+      api.start();
+      expect(api.isRunning).toBe(true);
+      api.start(); // should not throw or create another interval
+      expect(api.isRunning).toBe(true);
+      api.stop();
+    });
+
+    it('stop() does nothing if not running', () => {
+      const api = new DiscordFivemApi({ address: '127.0.0.1', port: 30120 }, false);
+      expect(api.isRunning).toBe(false);
+      api.stop(); // should not throw
+      expect(api.isRunning).toBe(false);
+    });
+
+    it('destroy() stops polling and clears all listeners', () => {
+      const api = new DiscordFivemApi({ address: '127.0.0.1', port: 30120 }, false);
+      const listener = jest.fn();
+      api.on('ready', listener);
+      api.start();
+      expect(api.isRunning).toBe(true);
+      expect(api.listenerCount('ready')).toBe(1);
+
+      api.destroy();
+
+      expect(api.isRunning).toBe(false);
+      expect(api.listenerCount('ready')).toBe(0);
+      expect(api.players).toEqual([]);
+      expect(api.resources).toEqual([]);
+    });
+
+    it('destroy() can be called multiple times safely', () => {
+      const api = new DiscordFivemApi({ address: '127.0.0.1', port: 30120 }, false);
+      api.start();
+      api.destroy();
+      api.destroy(); // should not throw
+      expect(api.isRunning).toBe(false);
+    });
+  });
 });
+

@@ -33,6 +33,17 @@ export interface ResolvedDiscordFivemApiOptions extends Required<Omit<DiscordFiv
   circuitBreaker: CircuitBreakerOptions | false;
 }
 
+/** Typed event map for DiscordFivemApi */
+export interface DiscordFivemApiEventMap {
+  ready: [];
+  readyPlayers: [players: (Player | RawPlayerIdentifiers)[]];
+  readyResources: [resources: string[]];
+  playerJoin: [player: Player | RawPlayerIdentifiers];
+  playerLeave: [player: Player | RawPlayerIdentifiers];
+  resourceAdd: [resource: string];
+  resourceRemove: [resource: string];
+}
+
 export class DiscordFivemApi extends EventEmitter {
   readonly options: ResolvedDiscordFivemApiOptions;
   readonly address: string;
@@ -45,6 +56,10 @@ export class DiscordFivemApi extends EventEmitter {
   private readonly cachePlayers: TtlCache<string, RawPlayerIdentifiers[]> | null;
   /** Resolved IP:port when address is a cfx.re/join link; set on first use */
   private _resolvedEndpoint: { address: string; port: number } | null = null;
+  /** Interval ID for polling - stored to allow cleanup */
+  private _pollingIntervalId: ReturnType<typeof setInterval> | null = null;
+  /** Flag indicating if polling has been initialized */
+  private _initialized = false;
 
   constructor(options: DiscordFivemApiOptions, init = false) {
     super();
@@ -168,17 +183,17 @@ export class DiscordFivemApi extends EventEmitter {
     }
     return this._getBaseUrl().then((baseUrl) =>
       this._fetch<RawServerInfo>(`${baseUrl}/info.json`)
-      .then((data) => {
-        if (this.cacheInfo) this.cacheInfo.set(CACHE_KEY_INFO, data);
-        if (this.useStructure) return new Server(data);
-        return data;
-      })
-      .catch((err: { message: string; stack?: string }) =>
-        Promise.reject({
-          error: { message: err.message, stack: err.stack },
-          data: {},
-        } as RejectedServerData)
-      )
+        .then((data) => {
+          if (this.cacheInfo) this.cacheInfo.set(CACHE_KEY_INFO, data);
+          if (this.useStructure) return new Server(data);
+          return data;
+        })
+        .catch((err: { message: string; stack?: string }) =>
+          Promise.reject({
+            error: { message: err.message, stack: err.stack },
+            data: {},
+          } as RejectedServerData)
+        )
     );
   }
 
@@ -194,21 +209,21 @@ export class DiscordFivemApi extends EventEmitter {
     }
     return this._getBaseUrl().then((baseUrl) =>
       this._fetch<RawPlayerIdentifiers[]>(`${baseUrl}/players.json`)
-      .then((data) => {
-        if (this.cachePlayers) this.cachePlayers.set(CACHE_KEY_PLAYERS, data);
-        if (this.useStructure) {
-          const players = data.map((p) => new Player(p));
-          this._players = players;
-          return players;
-        }
-        return data;
-      })
-      .catch((err: { message: string; stack?: string }) =>
-        Promise.reject({
-          error: { message: err.message, stack: err.stack },
-          players: [],
-        } as RejectedPlayers)
-      )
+        .then((data) => {
+          if (this.cachePlayers) this.cachePlayers.set(CACHE_KEY_PLAYERS, data);
+          if (this.useStructure) {
+            const players = data.map((p) => new Player(p));
+            this._players = players;
+            return players;
+          }
+          return data;
+        })
+        .catch((err: { message: string; stack?: string }) =>
+          Promise.reject({
+            error: { message: err.message, stack: err.stack },
+            players: [],
+          } as RejectedPlayers)
+        )
     );
   }
 
@@ -219,13 +234,13 @@ export class DiscordFivemApi extends EventEmitter {
     }
     return this._getBaseUrl().then((baseUrl) =>
       this._fetch<RawPlayerIdentifiers[]>(`${baseUrl}/players.json`)
-      .then((data) => data.length)
-      .catch((err: { message: string; stack?: string }) =>
-        Promise.reject({
-          error: { message: err.message, stack: err.stack },
-          playersOnline: 0,
-        } as RejectedPlayersOnline)
-      )
+        .then((data) => data.length)
+        .catch((err: { message: string; stack?: string }) =>
+          Promise.reject({
+            error: { message: err.message, stack: err.stack },
+            playersOnline: 0,
+          } as RejectedPlayersOnline)
+        )
     );
   }
 
@@ -239,13 +254,13 @@ export class DiscordFivemApi extends EventEmitter {
     }
     return this._getBaseUrl().then((baseUrl) =>
       this._fetch<RawServerInfo>(`${baseUrl}/info.json`)
-      .then((data) => data.vars?.sv_maxClients ?? 0)
-      .catch((err: { message: string; stack?: string }) =>
-        Promise.reject({
-          error: { message: err.message, stack: err.stack },
-          maxPlayers: 0,
-        } as RejectedMaxPlayers)
-      )
+        .then((data) => data.vars?.sv_maxClients ?? 0)
+        .catch((err: { message: string; stack?: string }) =>
+          Promise.reject({
+            error: { message: err.message, stack: err.stack },
+            maxPlayers: 0,
+          } as RejectedMaxPlayers)
+        )
     );
   }
 
@@ -277,7 +292,115 @@ export class DiscordFivemApi extends EventEmitter {
     });
   }
 
+  /**
+   * Returns whether polling is currently active.
+   */
+  get isRunning(): boolean {
+    return this._pollingIntervalId !== null;
+  }
+
+  /**
+   * Starts or restarts polling for player and resource changes.
+   * If already running, does nothing. Use stop() first if you need to restart.
+   */
+  start(): void {
+    if (this._pollingIntervalId !== null) {
+      return; // Already running
+    }
+    this._startPolling();
+  }
+
+  /**
+   * Stops the polling interval. Can be restarted with start().
+   */
+  stop(): void {
+    if (this._pollingIntervalId !== null) {
+      clearInterval(this._pollingIntervalId);
+      this._pollingIntervalId = null;
+    }
+  }
+
+  /**
+   * Completely destroys the instance: stops polling, clears cache, removes all listeners.
+   * After calling destroy(), the instance should not be used anymore.
+   */
+  destroy(): void {
+    this.stop();
+    this.cacheInfo?.clear();
+    this.cachePlayers?.clear();
+    this.removeAllListeners();
+    this._players = [];
+    this.resources = [];
+    this._initialized = false;
+  }
+
+  /**
+   * Internal method to start the polling interval.
+   */
+  private _startPolling(): void {
+    const intervalMs = this.options.interval ?? DEFAULT_INTERVAL;
+    this._pollingIntervalId = setInterval(async () => {
+      await this._pollOnce();
+    }, intervalMs);
+  }
+
+  /**
+   * Internal method that performs one polling cycle.
+   */
+  private async _pollOnce(): Promise<void> {
+    const newPlayers = await this.getServerPlayers().catch(() => []);
+    const newPlayersList = Array.isArray(newPlayers) ? newPlayers : [];
+
+    // Detect player joins and leaves
+    if (this._players.length !== newPlayersList.length) {
+      if (this._players.length < newPlayersList.length) {
+        for (const player of newPlayersList) {
+          const exists = this._players.some(
+            (p) => (p as { id?: number }).id === (player as { id?: number }).id
+          );
+          if (!exists) this.emit('playerJoin', player);
+        }
+      } else {
+        for (const player of this._players) {
+          const exists = newPlayersList.some(
+            (p) => (p as { id?: number }).id === (player as { id?: number }).id
+          );
+          if (!exists) this.emit('playerLeave', player);
+        }
+      }
+      this._players = newPlayersList;
+    }
+
+    // Detect resource changes
+    const serverData2 = await this.getServerData().catch(() => ({} as RawServerInfo));
+    const raw2 = (serverData2 as RawServerInfo) ?? {};
+    const newResources = Array.isArray(raw2.resources) ? raw2.resources : [];
+
+    if (this.resources.length !== newResources.length) {
+      if (this.resources.length < newResources.length) {
+        for (const resource of newResources) {
+          if (this.resources.includes(resource)) continue;
+          this.emit('resourceAdd', resource);
+        }
+      } else {
+        for (const resource of this.resources) {
+          if (newResources.includes(resource)) continue;
+          this.emit('resourceRemove', resource);
+        }
+      }
+      this.resources = newResources;
+    }
+  }
+
+  /**
+   * @deprecated Use start() instead. This method is kept for backward compatibility.
+   * Initializes the API: fetches initial data and starts polling.
+   */
   async _init(): Promise<void> {
+    if (this._initialized) {
+      return; // Prevent double initialization
+    }
+    this._initialized = true;
     this.emit('ready');
 
     const [serverData, players] = await Promise.all([
@@ -292,48 +415,6 @@ export class DiscordFivemApi extends EventEmitter {
     this.emit('readyPlayers', this._players);
     this.emit('readyResources', this.resources);
 
-    const intervalMs = this.options.interval ?? DEFAULT_INTERVAL;
-    setInterval(async () => {
-      const newPlayers = await this.getServerPlayers().catch(() => []);
-      const newPlayersList = Array.isArray(newPlayers) ? newPlayers : [];
-
-      if (this._players.length !== newPlayersList.length) {
-        if (this._players.length < newPlayersList.length) {
-          for (const player of newPlayersList) {
-            const exists = this._players.some(
-              (p) => (p as { id?: number }).id === (player as { id?: number }).id
-            );
-            if (!exists) this.emit('playerJoin', player);
-          }
-        } else {
-          for (const player of this._players) {
-            const exists = newPlayersList.some(
-              (p) => (p as { id?: number }).id === (player as { id?: number }).id
-            );
-            if (!exists) this.emit('playerLeave', player);
-          }
-        }
-        this._players = newPlayersList;
-      }
-
-      const serverData2 = await this.getServerData().catch(() => ({} as RawServerInfo));
-      const raw2 = (serverData2 as RawServerInfo) ?? {};
-      const newResources = Array.isArray(raw2.resources) ? raw2.resources : [];
-
-      if (this.resources.length !== newResources.length) {
-        if (this.resources.length < newResources.length) {
-          for (const resource of newResources) {
-            if (this.resources.includes(resource)) continue;
-            this.emit('resourceAdd', resource);
-          }
-        } else {
-          for (const resource of this.resources) {
-            if (newResources.includes(resource)) continue;
-            this.emit('resourceRemove', resource);
-          }
-        }
-        this.resources = newResources;
-      }
-    }, intervalMs);
+    this._startPolling();
   }
 }

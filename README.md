@@ -116,6 +116,15 @@ O segundo argumento do construtor (**`init`**) indica se os dados devem ser carr
 | `filterPlayers(players, predicate)` | Array filtrado |
 | `sortPlayers(players, key, 'asc' \| 'desc')` | Array ordenado |
 
+### Controle de Lifecycle
+
+| Método/Propriedade | Descrição |
+|--------------------|-----------|
+| `start()` | Inicia o polling de jogadores/recursos |
+| `stop()` | Para o polling (pode ser reiniciado com `start()`) |
+| `destroy()` | Para polling, limpa cache e remove todos os listeners |
+| `isRunning` | `boolean` - Indica se o polling está ativo |
+
 ### Eventos
 
 | Evento | Payload |

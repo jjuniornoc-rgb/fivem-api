@@ -1,11 +1,13 @@
 import { EventEmitter } from 'events';
 import { DiscordFivemApi } from './DiscordFivemApi';
-import type { DiscordFivemApiOptions, DiscordFivemApiServerEntry, ServerStatus } from './types';
+import { Player } from './structures/index';
+import type { DiscordFivemApiOptions, DiscordFivemApiServerEntry, RawPlayerIdentifiers, ServerStatus } from './types';
 
-export interface MultiServerManagerEvents {
+/** Typed event map for MultiServerManager */
+export interface MultiServerManagerEventMap {
   ready: [serverId: string];
-  playerJoin: [payload: { serverId: string; player: unknown }];
-  playerLeave: [payload: { serverId: string; player: unknown }];
+  playerJoin: [payload: { serverId: string; player: Player | RawPlayerIdentifiers }];
+  playerLeave: [payload: { serverId: string; player: Player | RawPlayerIdentifiers }];
   resourceAdd: [payload: { serverId: string; resource: string }];
   resourceRemove: [payload: { serverId: string; resource: string }];
 }
@@ -38,9 +40,37 @@ export class MultiServerManager extends EventEmitter {
   }
 
   /**
-   * Remove a server by id. Does not stop intervals; the instance is just no longer managed.
+   * Stop polling for a specific server without removing it.
+   */
+  stopServer(id: string): boolean {
+    const api = this.servers.get(id);
+    if (api) {
+      api.stop();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Start polling for a specific server that was previously stopped.
+   */
+  startServer(id: string): boolean {
+    const api = this.servers.get(id);
+    if (api) {
+      api.start();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Remove a server by id. Stops polling and destroys the instance before removing.
    */
   removeServer(id: string): boolean {
+    const api = this.servers.get(id);
+    if (api) {
+      api.destroy();
+    }
     return this.servers.delete(id);
   }
 
@@ -59,6 +89,13 @@ export class MultiServerManager extends EventEmitter {
   }
 
   /**
+   * Returns the number of managed servers.
+   */
+  get size(): number {
+    return this.servers.size;
+  }
+
+  /**
    * Get status of all servers in parallel. Returns a map id -> 'online' | 'offline'.
    */
   async getAllStatus(): Promise<Record<string, ServerStatus>> {
@@ -70,6 +107,36 @@ export class MultiServerManager extends EventEmitter {
       })
     );
     return Object.fromEntries(results);
+  }
+
+  /**
+   * Stop polling for all servers.
+   */
+  stopAll(): void {
+    for (const api of this.servers.values()) {
+      api.stop();
+    }
+  }
+
+  /**
+   * Start polling for all servers.
+   */
+  startAll(): void {
+    for (const api of this.servers.values()) {
+      api.start();
+    }
+  }
+
+  /**
+   * Destroy all server instances and clear the manager.
+   * After calling this, the manager is empty and should not be used anymore.
+   */
+  destroyAll(): void {
+    for (const api of this.servers.values()) {
+      api.destroy();
+    }
+    this.servers.clear();
+    this.removeAllListeners();
   }
 
   /**

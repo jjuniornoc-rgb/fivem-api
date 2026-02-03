@@ -10,6 +10,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Lifecycle methods for DiscordFivemApi**: `start()`, `stop()`, `destroy()`, and `isRunning` getter for proper resource management.
+- **Typed event maps**: `DiscordFivemApiEventMap` and `MultiServerManagerEventMap` interfaces for type-safe event handling.
+- **MultiServerManager lifecycle**: `stopServer(id)`, `startServer(id)`, `stopAll()`, `startAll()`, `destroyAll()`, and `size` getter.
+- Export `ServerStatus` type from the main module.
+- 16 new tests for lifecycle methods (74 total tests passing).
+
+### Fixed
+
+- **Memory leak**: `setInterval` in `_init()` is now stored and properly cleared when `stop()` or `destroy()` is called.
+- **MultiServerManager.removeServer()**: Now calls `destroy()` on the server instance before removing it to prevent memory leaks.
+- Prevent double initialization with `_initialized` flag in `_init()`.
+
+
 ## [2.0.7] - 2026-02-02
 
 ### Added
