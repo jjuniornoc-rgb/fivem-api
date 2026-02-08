@@ -1,35 +1,23 @@
-import axios from 'axios';
+import { httpGet } from './httpClient';
 
 const CFX_JOIN_REGEX = /cfx\.re\/join\/([a-zA-Z0-9]+)/i;
 const CFX_API_BASE = 'https://servers-frontend.fivem.net/api/servers/single';
 const RESOLVE_TIMEOUT = 10000;
 
-/** Result of resolving a cfx.re/join link to a direct endpoint */
 export interface CfxResolvedEndpoint {
   address: string;
   port: number;
 }
 
-/**
- * Checks if the given string is a cfx.re join link (e.g. https://cfx.re/join/p7zxb5 or cfx.re/join/p7zxb5).
- */
 export function isCfxJoinLink(input: string): boolean {
   return CFX_JOIN_REGEX.test(input.trim());
 }
 
-/**
- * Extracts the join code from a cfx.re link (e.g. "https://cfx.re/join/p7zxb5" -> "p7zxb5").
- * Returns null if the input is not a valid cfx.re join link.
- */
 export function extractCfxCode(input: string): string | null {
   const match = input.trim().match(CFX_JOIN_REGEX);
   return match ? match[1] : null;
 }
 
-/**
- * Response shape from FiveM servers-frontend API (single server).
- * The API may return ConnectEndPoints or connectEndPoints with array of "ip:port" strings.
- */
 interface CfxApiServerResponse {
   Data?: {
     connectEndPoints?: string[];
@@ -40,14 +28,9 @@ interface CfxApiServerResponse {
   [key: string]: unknown;
 }
 
-/**
- * Resolves a cfx.re join code to the server's IP and port using the official FiveM API.
- * @see https://servers-frontend.fivem.net/api/servers/single/{code}
- */
 export async function resolveCfxJoinCode(code: string): Promise<CfxResolvedEndpoint> {
   const url = `${CFX_API_BASE}/${encodeURIComponent(code)}`;
-  const res = await axios.get<CfxApiServerResponse>(url, { timeout: RESOLVE_TIMEOUT });
-  const data = res.data;
+  const data = await httpGet<CfxApiServerResponse>(url, { timeout: RESOLVE_TIMEOUT });
 
   const endpoints: string[] | undefined =
     data.Data?.connectEndPoints ??
@@ -75,24 +58,26 @@ export async function resolveCfxJoinCode(code: string): Promise<CfxResolvedEndpo
   return { address, port };
 }
 
-/**
- * Resolves a cfx.re join link (URL or code) to address and port.
- * If the input is not a cfx.re link, returns null (caller should use address/port as-is).
- */
 export async function resolveCfxJoinLink(input: string): Promise<CfxResolvedEndpoint | null> {
   const code = extractCfxCode(input);
   if (!code) return null;
   return resolveCfxJoinCode(code);
 }
 
-/** In-memory cache for resolved cfx.re codes (code -> { address, port }) to avoid repeated API calls */
 const resolvedCache = new Map<string, CfxResolvedEndpoint>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 5 * 60 * 1000;
 const cacheExpiry = new Map<string, number>();
 
-/**
- * Resolves a cfx.re join code with a short-lived cache to reduce API calls.
- */
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, expiry] of cacheExpiry) {
+    if (expiry <= now) {
+      resolvedCache.delete(code);
+      cacheExpiry.delete(code);
+    }
+  }
+}, CACHE_TTL_MS);
+
 export async function resolveCfxJoinCodeCached(code: string): Promise<CfxResolvedEndpoint> {
   const now = Date.now();
   const cached = resolvedCache.get(code);

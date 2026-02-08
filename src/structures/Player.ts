@@ -1,7 +1,6 @@
 import { flatten } from '../util/Util';
 import type { RawPlayerIdentifiers, PlayerIdentifiers as IPlayerIdentifiers } from '../types';
 
-/** Data shape stored inside Player after parsing identifiers */
 interface PlayerData extends Omit<RawPlayerIdentifiers, 'identifiers'> {
   identifiers?: IPlayerIdentifiers;
   name?: string;
@@ -9,9 +8,8 @@ interface PlayerData extends Omit<RawPlayerIdentifiers, 'identifiers'> {
   [key: string]: unknown;
 }
 
-/**
- * Represents a player with structured data and utility methods.
- */
+export type IdentifierType = 'steam' | 'license' | 'license2' | 'xbl' | 'live' | 'discord' | 'fivem' | 'ip';
+
 export class Player {
   #data: PlayerData;
 
@@ -23,7 +21,9 @@ export class Player {
       for (const identifier of this.#data.identifiers as string[]) {
         if (!identifier.includes(':')) continue;
         const [idType, idValue] = identifier.split(':');
-        playerIdentifiers[idType] = idValue;
+        if (idType && idValue) {
+          playerIdentifiers[idType] = idValue;
+        }
       }
       this.#data.identifiers = playerIdentifiers;
     }
@@ -35,6 +35,26 @@ export class Player {
         value: this.#data[key],
       });
     }
+  }
+
+  get name(): string | undefined {
+    return this.#data.name;
+  }
+
+  get id(): number | undefined {
+    return this.#data.id;
+  }
+
+  get identifiers(): IPlayerIdentifiers | undefined {
+    return this.#data.identifiers;
+  }
+
+  getIdentifier(type: IdentifierType | string): string | undefined {
+    return this.#data.identifiers?.[type];
+  }
+
+  hasIdentifier(type: IdentifierType | string): boolean {
+    return this.#data.identifiers?.[type] !== undefined;
   }
 
   toString(): string {

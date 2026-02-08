@@ -1,8 +1,5 @@
 import type { RawServerInfo } from '../types';
 
-/**
- * Class representing server data with encapsulated properties.
- */
 export class Server {
   #data: RawServerInfo;
 

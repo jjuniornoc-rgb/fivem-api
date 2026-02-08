@@ -7,10 +7,6 @@ const DEFAULT_OPTS: Required<CircuitBreakerOptions> = {
   cooldownMs: 30000,
 };
 
-/**
- * Simple in-memory circuit breaker: after N consecutive failures, opens and
- * rejects immediately until cooldown passes, then allows one call (half-open).
- */
 export class CircuitBreaker {
   private state: CircuitState = 'closed';
   private failures = 0;
@@ -34,7 +30,6 @@ export class CircuitBreaker {
     return this.state;
   }
 
-  /** Call before executing the guarded operation. Throws if circuit is open. */
   guard(): void {
     const s = this.getState();
     if (s === 'open') {
@@ -42,13 +37,11 @@ export class CircuitBreaker {
     }
   }
 
-  /** Call after success: resets failure count and closes if half-open. */
   recordSuccess(): void {
     this.failures = 0;
     if (this.state === 'half-open') this.state = 'closed';
   }
 
-  /** Call after failure: increments count and opens if threshold reached. */
   recordFailure(): void {
     this.failures += 1;
     if (this.failures >= this.opts.failureThreshold) {
@@ -57,7 +50,6 @@ export class CircuitBreaker {
     }
   }
 
-  /** Execute fn with guard: on failure records and rethrows; on success records and returns. */
   async execute<T>(fn: () => Promise<T>): Promise<T> {
     this.guard();
     try {

@@ -7,11 +7,6 @@ dist/
 # Test coverage
 coverage/
 
-# Generated docs (TypeDoc)
-docs/
-__tests__/
-examples/
-
 # Logs and debug
 npm-debug.log*
 yarn-debug.log*
@@ -27,7 +22,6 @@ yarn-error.log*
 # IDE / Editor
 .idea/
 .vscode/
-
 *.iml
 *.swp
 *.swo
@@ -37,6 +31,6 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Lock files (optional: keep one; uncomment if you want to ignore the other)
-# package-lock.json
-# yarn.lock
+# Lock files
+package-lock.json
+yarn.lock
